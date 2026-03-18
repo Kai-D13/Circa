@@ -6,8 +6,8 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
-SERVICES_KEY = "e3464a9335a846e985861bdf43fd8700201a93af28006a40"
-TILEMAP_KEY  = "06fadcaa43886a1b8a3fd81709a1f9723bb3e25d1010554b"
+SERVICES_KEY = os.environ.get("VIETMAP_SERVICES_KEY", "e3464a9335a846e985861bdf43fd8700201a93af28006a40")
+TILEMAP_KEY  = os.environ.get("VIETMAP_TILEMAP_KEY",  "06fadcaa43886a1b8a3fd81709a1f9723bb3e25d1010554b")
 EXCEL_PATH   = os.path.join(os.path.dirname(__file__), "Book1.xlsx")
 
 # Average car speed in HCM city (km/h) — used for travel time estimate
