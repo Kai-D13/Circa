@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Circa Store Map</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #f1f5f9;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border-bottom: 1px solid #334155;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      z-index: 1000;
+    }
+    .header-left h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: 0.5px;
+    }
+    .header-left .subtitle {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .header-left .built-by {
+      font-size: 10px;
+      color: #475569;
+      margin-top: 1px;
+      font-style: italic;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    #stats-bar {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 12px;
+      color: #94a3b8;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    #stats-bar b { color: #f8fafc; }
+
+    /* ── Map container ── */
+    #map-wrap { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    /* ── Loading overlay ── */
+    #loading {
+      position: absolute; inset: 0;
+      background: rgba(15, 23, 42, 0.9);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 2000;
+      transition: opacity 0.4s;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+    .spinner {
+      width: 46px; height: 46px;
+      border: 4px solid #334155;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      margin-bottom: 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-text { font-size: 14px; color: #94a3b8; }
+
+    /* ── Left Panel (Search) ── */
+    #left-panel {
+      position: absolute;
+      top: 12px; left: 12px;
+      width: 260px;
+      display: flex; flex-direction: column; gap: 10px;
+      z-index: 1000;
+      max-height: calc(100% - 24px);
+    }
+
+    .panel-card {
+      background: rgba(15, 23, 42, 0.93);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 12px;
+      backdrop-filter: blur(8px);
+    }
+    .panel-title {
+      font-size: 11px; font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    #search-input {
+      width: 100%;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 12px;
+      color: #f1f5f9;
+      outline: none;
+    }
+    #search-input::placeholder { color: #475569; }
+    #search-input:focus { border-color: #3b82f6; }
+
+    .store-list {
+      margin-top: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .store-list::-webkit-scrollbar { width: 4px; }
+    .store-list::-webkit-scrollbar-track { background: transparent; }
+    .store-list::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    .store-item {
+      padding: 6px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.12s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .store-item:hover { background: #1e293b; }
+    .store-item-info { flex: 1; min-width: 0; }
+    .store-item-name {
+      font-size: 12px; font-weight: 600;
+      color: #e2e8f0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .store-item-code { font-size: 10px; color: #475569; margin-top: 1px; }
+    .store-item-orders {
+      font-size: 10px; font-weight: 700;
+      color: #3b82f6; flex-shrink: 0;
+      text-align: right;
+    }
+
+    /* ── Route Panel ── */
+    .route-btn {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary.active {
+      background: #f59e0b;
+      color: #0f172a;
+    }
+    .btn-danger {
+      background: rgba(220, 38, 38, 0.15);
+      border: 1px solid rgba(220, 38, 38, 0.3);
+      color: #f87171;
+    }
+    .btn-danger:hover { background: rgba(220, 38, 38, 0.25); }
+
+    .route-slot {
+      margin-top: 8px;
+      padding: 7px 10px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 7px;
+      display: flex; align-items: flex-start; gap: 8px;
+    }
+    .route-slot-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0; margin-top: 3px;
+    }
+    .dot-from { background: #22c55e; }
+    .dot-to   { background: #ef4444; }
+    .route-slot-label { font-size: 10px; color: #64748b; }
+    .route-slot-name  {
+      font-size: 12px; font-weight: 600; color: #e2e8f0;
+      margin-top: 1px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: 190px;
+    }
+    .route-slot-empty { font-size: 11px; color: #475569; margin-top: 1px; font-style: italic; }
+
+    /* ── Route result card ── */
+    #route-result {
+      display: none;
+      margin-top: 8px;
+      background: rgba(37, 99, 235, 0.08);
+      border: 1px solid rgba(37, 99, 235, 0.25);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .route-result-stats {
+      display: flex; gap: 8px;
+    }
+    .route-stat {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 7px;
+      padding: 8px;
+      text-align: center;
+    }
+    .route-stat-num {
+      font-size: 20px; font-weight: 800; line-height: 1;
+    }
+    .route-stat-num.blue  { color: #3b82f6; }
+    .route-stat-num.amber { color: #f59e0b; }
+    .route-stat-label { font-size: 10px; color: #64748b; margin-top: 3px; }
+    .route-note { font-size: 10px; color: #475569; margin-top: 6px; text-align: center; font-style: italic; }
+
+    /* ── Route select mode hint ── */
+    #route-hint {
+      position: absolute;
+      top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(245, 158, 11, 0.9);
+      color: #0f172a;
+      font-size: 12px; font-weight: 700;
+      padding: 8px 18px;
+      border-radius: 20px;
+      z-index: 1500;
+      display: none;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    /* ── Leaflet popup overrides ── */
+    .leaflet-popup-content-wrapper {
+      background: #1e293b !important;
+      border: 1px solid #334155 !important;
+      border-radius: 12px !important;
+      color: #f1f5f9 !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+    }
+    .leaflet-popup-tip { background: #1e293b !important; }
+    .leaflet-popup-close-button {
+      color: #64748b !important; font-size: 18px !important;
+      top: 6px !important; right: 8px !important;
+    }
+    .leaflet-popup-content { margin: 14px 16px !important; }
+
+    /* ── Popup content styles ── */
+    .pop-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+    .pop-icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pop-name  { font-size: 14px; font-weight: 700; color: #f8fafc; line-height: 1.3; }
+    .pop-code  { font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace; }
+    .pop-address {
+      font-size: 11px; color: #94a3b8; line-height: 1.5;
+      padding: 8px 0;
+      border-top: 1px solid #334155;
+      border-bottom: 1px solid #334155;
+      margin-bottom: 10px;
+    }
+    .pop-stats { display: flex; gap: 10px; margin-bottom: 10px; }
+    .pop-stat-box {
+      flex: 1;
+      background: #0f172a; border: 1px solid #334155;
+      border-radius: 8px; padding: 8px 10px; text-align: center;
+    }
+    .pop-stat-num  { font-size: 22px; font-weight: 800; line-height: 1; }
+    .pop-stat-num.blue  { color: #3b82f6; }
+    .pop-stat-num.green { color: #10b981; }
+    .pop-stat-label { font-size: 10px; color: #64748b; margin-top: 4px; }
+
+    /* Route action buttons in popup */
+    .pop-route-btns { display: flex; gap: 6px; }
+    .pop-route-btn {
+      flex: 1; padding: 6px 4px;
+      border: none; border-radius: 6px;
+      font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .pop-btn-from {
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      color: #4ade80;
+    }
+    .pop-btn-from:hover { background: rgba(34, 197, 94, 0.25); }
+    .pop-btn-to {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+    .pop-btn-to:hover { background: rgba(239, 68, 68, 0.25); }
+
+    /* ── Route slot inner wrapper ── */
+    .route-slot-body { flex: 1; min-width: 0; }
+    .route-slot-gap  { margin-top: 6px; }
+    .route-actions   { display: flex; gap: 6px; margin-top: 8px; }
+
+    /* ── Cluster override ── */
+    .marker-cluster div {
+      background: rgba(16, 185, 129, 0.75) !important;
+      color: #f8fafc !important;
+      font-weight: 700 !important; font-size: 13px !important;
+    }
+    .marker-cluster { background: rgba(30, 41, 59, 0.85) !important; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Circa Store Map</h1>
+    <p class="subtitle">Bản đồ hệ thống cửa hàng thuốc Circa</p>
+    <p class="built-by">Vũ build</p>
+  </div>
+  <div class="header-right">
+    <div id="stats-bar">
+      Tổng cửa hàng: <b id="s-total">–</b>
+    </div>
+  </div>
+</header>
+
+<div id="map-wrap">
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loading-text">Đang tải dữ liệu cửa hàng...</div>
+  </div>
+
+  <!-- Top center hint when route mode active -->
+  <div id="route-hint"></div>
+
+  <div id="map"></div>
+
+  <!-- Left Panel -->
+  <div id="left-panel">
+    <!-- Search -->
+    <div class="panel-card">
+      <div class="panel-title">Tìm kiếm</div>
+      <input id="search-input" type="text" placeholder="Tên hoặc mã cửa hàng..." autocomplete="off" />
+      <div class="store-list" id="store-list"></div>
+    </div>
+
+    <!-- Route finder -->
+    <div class="panel-card">
+      <div class="panel-title">Tính đường đi</div>
+
+      <div class="route-slot">
+        <div class="route-slot-dot dot-from"></div>
+        <div class="route-slot-body">
+          <div class="route-slot-label">Điểm xuất phát</div>
+          <div id="from-name" class="route-slot-empty">Chưa chọn</div>
+        </div>
+      </div>
+
+      <div class="route-slot route-slot-gap">
+        <div class="route-slot-dot dot-to"></div>
+        <div class="route-slot-body">
+          <div class="route-slot-label">Điểm đến</div>
+          <div id="to-name" class="route-slot-empty">Chưa chọn</div>
+        </div>
+      </div>
+
+      <div id="route-result">
+        <div class="route-result-stats">
+          <div class="route-stat">
+            <div class="route-stat-num blue" id="res-dist">–</div>
+            <div class="route-stat-label">km</div>
+          </div>
+          <div class="route-stat">
+            <div class="route-stat-num amber" id="res-time">–</div>
+            <div class="route-stat-label">phút</div>
+          </div>
+        </div>
+        <div class="route-note">Ước tính theo tốc độ TB 25 km/h tại TP.HCM</div>
+      </div>
+
+      <div class="route-actions">
+        <button type="button" class="route-btn btn-danger" id="btn-clear-route" hidden>Xóa tuyến</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+const TILEMAP_KEY = "{{ tilemap_key }}";
+
+// ── Map init ──────────────────────────────────────────────
+const map = L.map('map', { center: [16.0, 107.5], zoom: 6 });
+
+const vietmapTiles = L.tileLayer(
+  `https://maps.vietmap.vn/api/maps/light/{z}/{x}/{y}.png?apikey=${TILEMAP_KEY}`,
+  { attribution: '© <a href="https://vietmap.vn">VietMap</a>', maxZoom: 19, tileSize: 256 }
+);
+const osmTiles = L.tileLayer(
+  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  { attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom: 19 }
+);
+let vmFailed = false;
+vietmapTiles.on('tileerror', () => {
+  if (!vmFailed) { vmFailed = true; map.removeLayer(vietmapTiles); osmTiles.addTo(map); }
+});
+vietmapTiles.addTo(map);
+
+// ── Encoded polyline decoder (Google algorithm) ───────────
+function decodePolyline(encoded) {
+  const points = [];
+  let idx = 0, lat = 0, lng = 0;
+  while (idx < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+  return points;
+}
+
+// ── Pharmacy SVG icon (size-scaled by orders) ────────────
+function pharmacyIcon(sizeCategory) {
+  // sizeCategory: 0=tiny, 1=small, 2=medium, 3=large, 4=xlarge
+  const configs = [
+    { w: 22, h: 26, anchor: [11, 23], color: '#059669', opacity: 0.7 },  // tiny
+    { w: 28, h: 33, anchor: [14, 30], color: '#059669', opacity: 0.8 },  // small
+    { w: 34, h: 40, anchor: [17, 37], color: '#10b981', opacity: 0.9 },  // medium
+    { w: 40, h: 47, anchor: [20, 44], color: '#10b981', opacity: 1.0 },  // large
+    { w: 48, h: 56, anchor: [24, 53], color: '#34d399', opacity: 1.0 },  // xlarge
+  ];
+  const c = configs[sizeCategory];
+  const cx = c.w / 2;
+  const cy = c.h * 0.35;
+  const r  = c.w * 0.4;
+  const shadowRy = c.w * 0.1;
+  const crossW = c.w * 0.17;
+  const crossH = c.h * 0.26;
+  const crossX = cx - crossW / 2;
+  const crossY = cy - crossH / 2;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${c.w}" height="${c.h}" viewBox="0 0 ${c.w} ${c.h}" style="opacity:${c.opacity}">
+    <ellipse cx="${cx}" cy="${c.h - 3}" rx="${c.w * 0.28}" ry="${shadowRy}" fill="rgba(0,0,0,0.25)"/>
+    <path d="M${cx} 0 C${cx - r} 0 ${cx - r} ${cy * 0.6} ${cx - r} ${cy}
+             C${cx - r} ${cy + r * 1.2} ${cx} ${c.h - 4} ${cx} ${c.h - 4}
+             C${cx} ${c.h - 4} ${cx + r} ${cy + r * 1.2} ${cx + r} ${cy}
+             C${cx + r} ${cy * 0.6} ${cx + r} 0 ${cx} 0Z"
+          fill="${c.color}" stroke="white" stroke-width="1.5"/>
+    <circle cx="${cx}" cy="${cy}" r="${r * 0.72}" fill="white" opacity="0.95"/>
+    <rect x="${crossX}" y="${crossY}" width="${crossW}" height="${crossH}" rx="1.5" fill="${c.color}"/>
+    <rect x="${crossX - crossW * 0.65}" y="${crossY + crossH * 0.3}" width="${crossW * 2.3}" height="${crossH * 0.4}" rx="1.5" fill="${c.color}"/>
+  </svg>`;
+
+  return L.divIcon({
+    className: '',
+    html: svg,
+    iconSize:   [c.w, c.h],
+    iconAnchor: c.anchor,
+    popupAnchor:[0, -(c.h - 8)],
+  });
+}
+
+// Determine size category from total_order_30d
+function getSizeCategory(orders, min30, max30) {
+  if (max30 === min30) return 2;
+  const ratio = (orders - min30) / (max30 - min30);
+  if (ratio < 0.2)  return 0;
+  if (ratio < 0.4)  return 1;
+  if (ratio < 0.6)  return 2;
+  if (ratio < 0.8)  return 3;
+  return 4;
+}
+
+// ── Popup HTML ────────────────────────────────────────────
+const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
+
+function makePopup(store) {
+  return `<div style="min-width:240px;max-width:280px;">
+    <div class="pop-header">
+      <div class="pop-icon">${storeSvg}</div>
+      <div>
+        <div class="pop-name">${store.pos_name}</div>
+        <div class="pop-code">${store.pos_code}</div>
+      </div>
+    </div>
+    <div class="pop-address">${store.full_address}</div>
+    <div class="pop-stats">
+      <div class="pop-stat-box">
+        <div class="pop-stat-num blue">${store.total_order_30d.toLocaleString('vi-VN')}</div>
+        <div class="pop-stat-label">Đơn 30 ngày</div>
+      </div>
+      <div class="pop-stat-box">
+        <div class="pop-stat-num green">${store.total_order_90d.toLocaleString('vi-VN')}</div>
+        <div class="pop-stat-label">Đơn 90 ngày</div>
+      </div>
+    </div>
+    <div class="pop-route-btns">
+      <button class="pop-route-btn pop-btn-from" onclick="setRoutePoint('from','${store.pos_code}')">📍 Xuất phát</button>
+      <button class="pop-route-btn pop-btn-to"   onclick="setRoutePoint('to','${store.pos_code}')">🏁 Điểm đến</button>
+    </div>
+  </div>`;
+}
+
+// ── State ─────────────────────────────────────────────────
+let allStores  = [];
+let storeIndex = {};       // pos_code → store
+let markerMap  = {};       // pos_code → marker
+let clusterGroup = null;
+let routeFrom  = null;     // store object
+let routeTo    = null;     // store object
+let routeLine  = null;     // L.polyline
+let fromMarkerOverlay = null;
+let toMarkerOverlay   = null;
+
+// ── Route point markers (overlay pins) ───────────────────
+function overlayIcon(color, label) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="background:${color};color:#fff;font-size:10px;font-weight:700;
+                padding:3px 7px;border-radius:10px;white-space:nowrap;
+                box-shadow:0 2px 6px rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.3);">${label}</div>`,
+    iconAnchor: [0, 24],
+  });
+}
+
+// ── Exposed: set route point from popup buttons ───────────
+window.setRoutePoint = function(role, posCode) {
+  const store = storeIndex[posCode];
+  if (!store) return;
+
+  // Close any open popup
+  map.closePopup();
+
+  if (role === 'from') {
+    routeFrom = store;
+    document.getElementById('from-name').textContent = store.pos_name;
+    document.getElementById('from-name').className = 'route-slot-name';
+    if (fromMarkerOverlay) map.removeLayer(fromMarkerOverlay);
+    fromMarkerOverlay = L.marker([store.lat, store.lng], {
+      icon: overlayIcon('#22c55e', '▶ Xuất phát'),
+      zIndexOffset: 800,
+    }).addTo(map);
+  } else {
+    routeTo = store;
+    document.getElementById('to-name').textContent = store.pos_name;
+    document.getElementById('to-name').className = 'route-slot-name';
+    if (toMarkerOverlay) map.removeLayer(toMarkerOverlay);
+    toMarkerOverlay = L.marker([store.lat, store.lng], {
+      icon: overlayIcon('#ef4444', '■ Điểm đến'),
+      zIndexOffset: 800,
+    }).addTo(map);
+  }
+
+  document.getElementById('btn-clear-route').hidden = false;
+
+  if (routeFrom && routeTo) calculateRoute();
+};
+
+// ── Calculate & draw route ────────────────────────────────
+async function calculateRoute() {
+  const resultEl = document.getElementById('route-result');
+  resultEl.style.display = 'block';
+  document.getElementById('res-dist').textContent = '…';
+  document.getElementById('res-time').textContent = '…';
+
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+
+  try {
+    const url = `/api/route?lat1=${routeFrom.lat}&lng1=${routeFrom.lng}&lat2=${routeTo.lat}&lng2=${routeTo.lng}`;
+    const data = await fetch(url).then(r => r.json());
+
+    if (data.error) throw new Error(data.error);
+
+    document.getElementById('res-dist').textContent = data.distance_km;
+    document.getElementById('res-time').textContent = data.duration_min;
+
+    // Draw route polyline
+    if (data.points) {
+      const coords = decodePolyline(data.points);
+      routeLine = L.polyline(coords, {
+        color: '#3b82f6',
+        weight: 5,
+        opacity: 0.85,
+        dashArray: null,
+        lineJoin: 'round',
+      }).addTo(map);
+
+      // Fit bounds to show the full route
+      const bounds = L.latLngBounds([
+        [routeFrom.lat, routeFrom.lng],
+        [routeTo.lat, routeTo.lng],
+      ]);
+      map.fitBounds(bounds.pad(0.2));
+    }
+  } catch (err) {
+    document.getElementById('res-dist').textContent = '—';
+    document.getElementById('res-time').textContent = '—';
+    console.error('Route error:', err);
+  }
+}
+
+// ── Clear route ───────────────────────────────────────────
+document.getElementById('btn-clear-route').addEventListener('click', () => {
+  routeFrom = null;
+  routeTo   = null;
+  if (routeLine)          { map.removeLayer(routeLine);          routeLine = null; }
+  if (fromMarkerOverlay)  { map.removeLayer(fromMarkerOverlay);  fromMarkerOverlay = null; }
+  if (toMarkerOverlay)    { map.removeLayer(toMarkerOverlay);    toMarkerOverlay = null; }
+  document.getElementById('from-name').textContent = 'Chưa chọn';
+  document.getElementById('from-name').className   = 'route-slot-empty';
+  document.getElementById('to-name').textContent   = 'Chưa chọn';
+  document.getElementById('to-name').className     = 'route-slot-empty';
+  document.getElementById('route-result').style.display = 'none';
+  document.getElementById('btn-clear-route').hidden = true;
+});
+
+// ── Build markers ─────────────────────────────────────────
+function buildMarkers(stores) {
+  if (clusterGroup) map.removeLayer(clusterGroup);
+  markerMap = {};
+
+  // Compute order range for icon scaling
+  const orders = stores.map(s => s.total_order_30d);
+  const min30  = Math.min(...orders);
+  const max30  = Math.max(...orders);
+
+  clusterGroup = L.markerClusterGroup({
+    maxClusterRadius: 50,
+    iconCreateFunction(cluster) {
+      const n = cluster.getChildCount();
+      return L.divIcon({
+        className: '',
+        html: `<div style="
+          background: rgba(16,185,129,0.88);
+          border: 2.5px solid #fff;
+          border-radius: 50%;
+          width: 38px; height: 38px;
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; font-size: 13px; font-weight: 700;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.45);">${n}</div>`,
+        iconSize: [38, 38], iconAnchor: [19, 19],
+      });
+    },
+  });
+
+  stores.forEach(store => {
+    const cat    = getSizeCategory(store.total_order_30d, min30, max30);
+    const marker = L.marker([store.lat, store.lng], { icon: pharmacyIcon(cat) })
+      .bindPopup(makePopup(store), { maxWidth: 300 });
+    markerMap[store.pos_code] = marker;
+    clusterGroup.addLayer(marker);
+  });
+
+  clusterGroup.addTo(map);
+}
+
+// ── Search sidebar ────────────────────────────────────────
+function buildStoreList(stores) {
+  const listEl = document.getElementById('store-list');
+  listEl.innerHTML = '';
+  stores.forEach(store => {
+    const div = document.createElement('div');
+    div.className = 'store-item';
+    div.innerHTML = `
+      <div class="store-item-info">
+        <div class="store-item-name">${store.pos_name}</div>
+        <div class="store-item-code">${store.pos_code}</div>
+      </div>
+      <div class="store-item-orders">${store.total_order_30d.toLocaleString('vi-VN')}</div>`;
+    div.addEventListener('click', () => {
+      const marker = markerMap[store.pos_code];
+      if (marker) clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
+    });
+    listEl.appendChild(div);
+  });
+}
+
+document.getElementById('search-input').addEventListener('input', function () {
+  const q = this.value.trim().toLowerCase();
+  const filtered = q
+    ? allStores.filter(s =>
+        s.pos_name.toLowerCase().includes(q) ||
+        s.pos_code.toLowerCase().includes(q)
+      )
+    : allStores;
+  buildStoreList(filtered);
+});
+
+// ── Load data ─────────────────────────────────────────────
+async function loadData() {
+  try {
+    const data = await fetch('/api/stores').then(r => r.json());
+    allStores = data.stores;
+
+    // Build index
+    allStores.forEach(s => { storeIndex[s.pos_code] = s; });
+
+    document.getElementById('s-total').textContent = allStores.length;
+
+    buildMarkers(allStores);
+    buildStoreList(allStores);
+
+    if (allStores.length > 0) {
+      map.fitBounds(
+        L.latLngBounds(allStores.map(s => [s.lat, s.lng])),
+        { padding: [60, 60] }
+      );
+    }
+
+    document.getElementById('loading').classList.add('hidden');
+  } catch (err) {
+    document.getElementById('loading-text').textContent = 'Lỗi tải dữ liệu: ' + err.message;
+    console.error(err);
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
