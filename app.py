@@ -8,7 +8,8 @@ app = Flask(__name__)
 
 SERVICES_KEY = os.environ.get("VIETMAP_SERVICES_KEY", "e3464a9335a846e985861bdf43fd8700201a93af28006a40")
 TILEMAP_KEY  = os.environ.get("VIETMAP_TILEMAP_KEY",  "06fadcaa43886a1b8a3fd81709a1f9723bb3e25d1010554b")
-EXCEL_PATH   = os.path.join(os.path.dirname(__file__), "Book1.xlsx")
+EXCEL_PATH          = os.path.join(os.path.dirname(__file__), "data_store.xlsx")
+CUSTOMER_EXCEL_PATH = os.path.join(os.path.dirname(__file__), "data_individua_point.xlsx")
 
 # Average car speed in HCM city (km/h) — used for travel time estimate
 HCM_AVG_SPEED_KMH = 25
@@ -110,6 +111,48 @@ def api_route():
         "duration_min": duration_min,
         "points":       path.get("points", ""),  # encoded polyline
     })
+
+
+@app.route("/api/customers")
+def api_customers():
+    wb = openpyxl.load_workbook(CUSTOMER_EXCEL_PATH)
+    ws = wb.active
+    customers = []
+    for r in range(2, ws.max_row + 1):
+        pos_code = ws.cell(r, 1).value
+        pos_name = ws.cell(r, 2).value
+        name     = ws.cell(r, 3).value
+        phone    = ws.cell(r, 4).value
+        address  = ws.cell(r, 5).value
+        ward     = ws.cell(r, 6).value
+        district = ws.cell(r, 7).value
+        province = ws.cell(r, 8).value
+        lng      = ws.cell(r, 9).value
+        lat      = ws.cell(r, 10).value
+        orders   = ws.cell(r, 11).value
+
+        if not lat or not lng:
+            continue
+        try:
+            lat = float(lat)
+            lng = float(lng)
+        except (ValueError, TypeError):
+            continue
+
+        customers.append({
+            "pos_code": str(pos_code or ""),
+            "pos_name": str(pos_name or ""),
+            "name":     str(name or ""),
+            "phone":    str(phone or ""),
+            "address":  str(address or ""),
+            "ward":     str(ward or ""),
+            "district": str(district or ""),
+            "province": str(province or ""),
+            "lat":      lat,
+            "lng":      lng,
+            "orders":   int(orders) if orders else 0,
+        })
+    return jsonify({"customers": customers})
 
 
 if __name__ == "__main__":

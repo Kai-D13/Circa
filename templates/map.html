@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -255,6 +256,31 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
 
+    /* ── Store customer filter hint ── */
+    #store-hint {
+      position: absolute;
+      top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(217, 119, 6, 0.95);
+      color: #fff;
+      font-size: 12px; font-weight: 700;
+      padding: 7px 14px;
+      border-radius: 20px;
+      z-index: 1490;
+      display: none;
+      align-items: center; gap: 10px;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    }
+    #store-hint-close {
+      background: rgba(0,0,0,0.2);
+      border: none; color: #fff;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      font-size: 12px; line-height: 18px; text-align: center;
+      cursor: pointer; padding: 0; flex-shrink: 0;
+    }
+    #store-hint-close:hover { background: rgba(0,0,0,0.35); }
+
     /* ── Leaflet popup overrides ── */
     .leaflet-popup-content-wrapper {
       background: #1e293b !important;
@@ -325,6 +351,77 @@
     .route-slot-gap  { margin-top: 6px; }
     .route-actions   { display: flex; gap: 6px; margin-top: 8px; }
 
+    /* ── Layer toggle panel ── */
+    .layer-toggle {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 0;
+      cursor: pointer;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .layer-toggle input[type=checkbox] {
+      width: 15px; height: 15px; cursor: pointer;
+      accent-color: #3b82f6;
+    }
+    .layer-toggle span { font-size: 12px; color: #cbd5e1; }
+    .layer-toggle small { font-size: 10px; color: #475569; }
+    #customer-count {
+      font-size: 11px; color: #64748b;
+      margin-top: 4px;
+      text-align: right;
+    }
+    #points-legend {
+      display: none;
+      margin-top: 8px;
+      padding: 8px;
+      background: #0f172a;
+      border-radius: 6px;
+      border: 1px solid #334155;
+    }
+    .legend-title {
+      font-size: 10px; color: #64748b;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .legend-items { display: flex; flex-direction: column; gap: 4px; }
+    .legend-item  { display: flex; align-items: center; gap: 6px; }
+    .legend-item span { font-size: 11px; color: #cbd5e1; }
+    .legend-dot {
+      display: inline-block;
+      border-radius: 50%;
+      border: 1px solid #fff;
+      flex-shrink: 0;
+    }
+    .dot-low  { width: 10px; height: 10px; background: #a855f7; }
+    .dot-mid  { width: 12px; height: 12px; background: #f97316; }
+    .dot-high { width: 14px; height: 14px; background: #ef4444; }
+
+    /* ── Store popup – customer list ── */
+    .pop-divider { height: 1px; background: #334155; margin: 8px 0; }
+    .pop-customers-header {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; color: #64748b; margin-bottom: 6px;
+    }
+    .pop-cust-count { color: #3b82f6; font-weight: 700; }
+    .pop-customers-list {
+      max-height: 160px; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: #334155 transparent;
+    }
+    .pop-customers-list::-webkit-scrollbar { width: 4px; }
+    .pop-customers-list::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+    .pop-cust-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 4px 6px; border-radius: 5px;
+    }
+    .pop-cust-item:hover { background: #0f172a; }
+    .pop-cust-name {
+      font-size: 11px; color: #e2e8f0;
+      flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .pop-cust-orders { font-size: 11px; color: #3b82f6; font-weight: 600; margin-left: 8px; flex-shrink: 0; }
+    .pop-cust-loading, .pop-cust-empty { font-size: 11px; color: #475569; font-style: italic; padding: 4px 6px; }
+
     /* ── Cluster override ── */
     .marker-cluster div {
       background: rgba(16, 185, 129, 0.75) !important;
@@ -340,7 +437,6 @@
   <div class="header-left">
     <h1>Circa Store Map</h1>
     <p class="subtitle">Bản đồ hệ thống cửa hàng thuốc Circa</p>
-    <p class="built-by">Vũ build</p>
   </div>
   <div class="header-right">
     <div id="stats-bar">
@@ -358,6 +454,12 @@
   <!-- Top center hint when route mode active -->
   <div id="route-hint"></div>
 
+  <!-- Top center hint when store customer filter active -->
+  <div id="store-hint">
+    <span id="store-hint-text"></span>
+    <button type="button" id="store-hint-close" title="Xóa bộ lọc">×</button>
+  </div>
+
   <div id="map"></div>
 
   <!-- Left Panel -->
@@ -367,6 +469,32 @@
       <div class="panel-title">Tìm kiếm</div>
       <input id="search-input" type="text" placeholder="Tên hoặc mã cửa hàng..." autocomplete="off" />
       <div class="store-list" id="store-list"></div>
+    </div>
+
+    <!-- Layer Controls -->
+    <div class="panel-card">
+      <div class="panel-title">Lớp dữ liệu</div>
+      <label class="layer-toggle">
+        <input type="checkbox" id="chk-stores" checked />
+        <span>🏪 Cửa hàng</span>
+      </label>
+      <label class="layer-toggle">
+        <input type="checkbox" id="chk-heatmap" />
+        <span>🔥 Heatmap khách hàng</span>
+      </label>
+      <label class="layer-toggle">
+        <input type="checkbox" id="chk-points" />
+        <span>📍 Điểm khách hàng</span>
+      </label>
+      <div id="customer-count"></div>
+      <div id="points-legend">
+        <div class="legend-title">Số đơn hàng</div>
+        <div class="legend-items">
+          <div class="legend-item"><i class="legend-dot dot-low"></i><span>Thấp (ít đơn)</span></div>
+          <div class="legend-item"><i class="legend-dot dot-mid"></i><span>Trung bình</span></div>
+          <div class="legend-item"><i class="legend-dot dot-high"></i><span>Cao (nhiều đơn)</span></div>
+        </div>
+      </div>
     </div>
 
     <!-- Route finder -->
@@ -412,6 +540,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script>
 const TILEMAP_KEY = "{{ tilemap_key }}";
 
@@ -527,6 +656,14 @@ function makePopup(store) {
       <button class="pop-route-btn pop-btn-from" onclick="setRoutePoint('from','${store.pos_code}')">📍 Xuất phát</button>
       <button class="pop-route-btn pop-btn-to"   onclick="setRoutePoint('to','${store.pos_code}')">🏁 Điểm đến</button>
     </div>
+    <div class="pop-divider"></div>
+    <div class="pop-customers-header">
+      <span>Khách hàng thuộc store</span>
+      <span class="pop-cust-count"></span>
+    </div>
+    <div class="pop-customers-list">
+      <div class="pop-cust-loading">Đang tải...</div>
+    </div>
   </div>`;
 }
 
@@ -540,6 +677,8 @@ let routeTo    = null;     // store object
 let routeLine  = null;     // L.polyline
 let fromMarkerOverlay = null;
 let toMarkerOverlay   = null;
+let storeCustomerLayer = null;   // filtered customer points for selected store
+let selectedStoreMarker = null;  // single store marker shown when store is selected
 
 // ── Route point markers (overlay pins) ───────────────────
 function overlayIcon(color, label) {
@@ -676,6 +815,33 @@ function buildMarkers(stores) {
     const cat    = getSizeCategory(store.total_order_30d, min30, max30);
     const marker = L.marker([store.lat, store.lng], { icon: pharmacyIcon(cat) })
       .bindPopup(makePopup(store), { maxWidth: 300 });
+
+    marker.on('popupopen', async () => {
+      const el = marker.getPopup().getElement();
+      if (!el) return;
+      const listEl  = el.querySelector('.pop-customers-list');
+      const countEl = el.querySelector('.pop-cust-count');
+      try {
+        const customers = await fetchCustomers();
+        const storeCustomers = customers
+          .filter(c => c.pos_code === store.pos_code)
+          .sort((a, b) => b.orders - a.orders);
+        countEl.textContent = `(${storeCustomers.length})`;
+        if (storeCustomers.length === 0) {
+          listEl.innerHTML = '<div class="pop-cust-empty">Không có khách hàng</div>';
+          return;
+        }
+        listEl.innerHTML = storeCustomers.map(c =>
+          `<div class="pop-cust-item">
+            <span class="pop-cust-name">${c.name}</span>
+            <span class="pop-cust-orders">${c.orders} đơn</span>
+          </div>`
+        ).join('');
+      } catch (err) {
+        listEl.innerHTML = '<div class="pop-cust-empty">Lỗi tải dữ liệu</div>';
+      }
+    });
+
     markerMap[store.pos_code] = marker;
     clusterGroup.addLayer(marker);
   });
@@ -699,6 +865,7 @@ function buildStoreList(stores) {
     div.addEventListener('click', () => {
       const marker = markerMap[store.pos_code];
       if (marker) clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
+      showStoreCustomers(store).catch(err => console.error('Store customers error:', err));
     });
     listEl.appendChild(div);
   });
@@ -744,6 +911,220 @@ async function loadData() {
 }
 
 loadData();
+
+// ── Customer layers (heatmap + individual points) ─────────
+let customerData    = null;  // cached after first fetch
+let heatmapLayer    = null;
+let pointsLayer     = null;
+const canvasRenderer = L.canvas({ padding: 0.5 });
+
+async function fetchCustomers() {
+  if (customerData) return customerData;
+  document.getElementById('customer-count').textContent = 'Đang tải...';
+  const resp = await fetch('/api/customers');
+  const json = await resp.json();
+  customerData = json.customers;
+  document.getElementById('customer-count').textContent =
+    `${customerData.length.toLocaleString('vi-VN')} khách hàng`;
+  return customerData;
+}
+
+// Kepler.gl Red → Orange → Yellow gradient for Leaflet.heat
+const HEATMAP_GRADIENT = {
+  0.10: '#8b0000',
+  0.20: '#b22222',
+  0.30: '#dc143c',
+  0.40: '#ff4500',
+  0.50: '#ff6347',
+  0.60: '#ff8c00',
+  0.70: '#ffa500',
+  0.80: '#ffd700',
+  0.90: '#ffff00',
+  1.00: '#ffffe0',
+};
+
+async function toggleHeatmap(on) {
+  if (!on) {
+    if (heatmapLayer) { map.removeLayer(heatmapLayer); heatmapLayer = null; }
+    return;
+  }
+  const customers = await fetchCustomers();
+  const maxOrders = Math.max(...customers.map(c => c.orders), 1);
+  const points = customers.map(c => [c.lat, c.lng, c.orders / maxOrders]);
+  heatmapLayer = L.heatLayer(points, {
+    radius:    30,
+    blur:      20,
+    maxZoom:   15,
+    gradient:  HEATMAP_GRADIENT,
+    minOpacity: 0.35,
+  }).addTo(map);
+}
+
+async function togglePoints(on) {
+  if (!on) {
+    if (pointsLayer) { map.removeLayer(pointsLayer); pointsLayer = null; }
+    return;
+  }
+  const customers = await fetchCustomers();
+  const maxOrders = Math.max(...customers.map(c => c.orders), 1);
+
+  // Tính phân vị (quantile) để chia 3 mức: thấp / trung / cao
+  const sorted    = [...customers].map(c => c.orders).sort((a, b) => a - b);
+  const q33       = sorted[Math.floor(sorted.length * 0.33)];
+  const q66       = sorted[Math.floor(sorted.length * 0.66)];
+
+  function pointColor(orders) {
+    if (orders <= q33) return '#a855f7';  // tím  – ít đơn
+    if (orders <= q66) return '#f97316';  // cam  – trung bình
+    return '#ef4444';                     // đỏ   – nhiều đơn
+  }
+  function pointRadius(orders) {
+    const ratio = maxOrders > 0 ? orders / maxOrders : 0;
+    return 3 + ratio * 8;  // 3px → 11px
+  }
+
+  pointsLayer = L.geoJSON({
+    type: 'FeatureCollection',
+    features: customers.map(c => ({
+      type: 'Feature',
+      properties: c,
+      geometry: { type: 'Point', coordinates: [c.lng, c.lat] }
+    }))
+  }, {
+    renderer: canvasRenderer,
+    pointToLayer(feature, latlng) {
+      const p = feature.properties;
+      return L.circleMarker(latlng, {
+        radius:      pointRadius(p.orders),
+        fillColor:   pointColor(p.orders),
+        color:       '#fff',
+        weight:      1.2,
+        fillOpacity: 0.88,
+      });
+    },
+    onEachFeature(feature, layer) {
+      const p = feature.properties;
+      const color = pointColor(p.orders);
+      layer.bindPopup(`
+        <div style="min-width:200px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:4px;">${p.district || ''}${p.district && p.province ? ' – ' : ''}${p.province || ''}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">${p.address || p.ward || ''}</div>
+          <div style="font-size:15px;font-weight:800;color:${color};">${p.orders} đơn hàng</div>
+        </div>`, { maxWidth: 260 });
+    }
+  }).addTo(map);
+}
+
+// ── Store customer filter layer ───────────────────────────
+function clearStoreCustomers() {
+  if (storeCustomerLayer)  { map.removeLayer(storeCustomerLayer);  storeCustomerLayer = null; }
+  if (selectedStoreMarker) { map.removeLayer(selectedStoreMarker); selectedStoreMarker = null; }
+
+  // Restore clusterGroup (all stores)
+  if (clusterGroup && !map.hasLayer(clusterGroup)) {
+    clusterGroup.addTo(map);
+    document.getElementById('chk-stores').checked = true;
+  }
+  // Restore all-customers layer nếu checkbox vẫn đang bật
+  if (document.getElementById('chk-points').checked && pointsLayer && !map.hasLayer(pointsLayer)) {
+    pointsLayer.addTo(map);
+  }
+  document.getElementById('store-hint').style.display = 'none';
+}
+
+async function showStoreCustomers(store) {
+  // Dọn dẹp layer cũ (không restore clusterGroup — sẽ xử lý ngay bên dưới)
+  if (storeCustomerLayer)  { map.removeLayer(storeCustomerLayer);  storeCustomerLayer = null; }
+  if (selectedStoreMarker) { map.removeLayer(selectedStoreMarker); selectedStoreMarker = null; }
+  document.getElementById('store-hint').style.display = 'none';
+
+  // Ẩn toàn bộ store markers, chỉ giữ lại store được chọn
+  if (clusterGroup && map.hasLayer(clusterGroup)) {
+    map.removeLayer(clusterGroup);
+    document.getElementById('chk-stores').checked = false;
+  }
+  const orders30 = allStores.map(s => s.total_order_30d);
+  const cat = getSizeCategory(store.total_order_30d, Math.min(...orders30), Math.max(...orders30));
+  selectedStoreMarker = L.marker([store.lat, store.lng], {
+    icon: pharmacyIcon(cat),
+    zIndexOffset: 1000,
+  }).bindPopup(makePopup(store), { maxWidth: 300 }).addTo(map);
+
+  // Ẩn all-customers layer trong khi hiển thị store filter
+  if (pointsLayer && map.hasLayer(pointsLayer)) {
+    map.removeLayer(pointsLayer);
+  }
+
+  const customers = await fetchCustomers();
+  const filtered = customers.filter(c => c.pos_code === store.pos_code);
+
+  document.getElementById('store-hint-text').textContent =
+    `📍 ${store.pos_name} · ${filtered.length} khách hàng`;
+  document.getElementById('store-hint').style.display = 'flex';
+
+  if (filtered.length === 0) return;
+
+  const maxOrders = Math.max(...filtered.map(c => c.orders), 1);
+  storeCustomerLayer = L.geoJSON({
+    type: 'FeatureCollection',
+    features: filtered.map(c => ({
+      type: 'Feature',
+      properties: c,
+      geometry: { type: 'Point', coordinates: [c.lng, c.lat] }
+    }))
+  }, {
+    renderer: canvasRenderer,
+    pointToLayer(feature, latlng) {
+      const p = feature.properties;
+      const ratio = p.orders / maxOrders;
+      return L.circleMarker(latlng, {
+        radius:      5 + ratio * 7,
+        fillColor:   '#f59e0b',
+        color:       '#fff',
+        weight:      1.5,
+        fillOpacity: 0.92,
+      });
+    },
+    onEachFeature(feature, layer) {
+      const p = feature.properties;
+      layer.bindPopup(`
+        <div style="min-width:180px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:4px;">${p.name}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">${p.address || p.ward || ''}</div>
+          <div style="font-size:14px;font-weight:800;color:#f59e0b;">${p.orders} đơn hàng</div>
+        </div>`, { maxWidth: 240 });
+    }
+  }).addTo(map);
+
+  // Fit map để thấy store + toàn bộ điểm khách hàng
+  const bounds = storeCustomerLayer.getBounds().extend([store.lat, store.lng]);
+  if (bounds.isValid()) map.fitBounds(bounds.pad(0.12));
+}
+
+document.getElementById('store-hint-close').addEventListener('click', clearStoreCustomers);
+
+document.getElementById('chk-stores').addEventListener('change', function () {
+  if (!clusterGroup) return;
+  if (this.checked) {
+    clusterGroup.addTo(map);
+  } else {
+    map.removeLayer(clusterGroup);
+  }
+});
+
+document.getElementById('chk-heatmap').addEventListener('change', function () {
+  toggleHeatmap(this.checked).catch(err => {
+    console.error('Heatmap error:', err);
+    this.checked = false;
+  });
+});
+document.getElementById('chk-points').addEventListener('change', function () {
+  togglePoints(this.checked).catch(err => {
+    console.error('Points error:', err);
+    this.checked = false;
+  });
+  document.getElementById('points-legend').style.display = this.checked ? 'block' : 'none';
+});
 </script>
 </body>
 </html>
